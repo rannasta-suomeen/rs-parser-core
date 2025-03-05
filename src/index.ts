@@ -236,9 +236,11 @@ export const insert_drinks = (drinks: RsDrink[], pool: RsPool): Promise<RsResult
             })
             .catch(e => {
                 result.skipped += 1;
-                return;
+                return reject(e);
             })
         }
+
+        return resolve(result);
     });
 }
 
