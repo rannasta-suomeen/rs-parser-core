@@ -152,7 +152,12 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
         pool.query(`INSERT INTO products
             (name, href, price, img, volume, category_id, subcategory_id, abv, retailer, checksum, currently_available, last_available)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, NOW() AT TIME ZONE 'UTC')
-            ON CONFLICT (href) DO UPDATE SET last_available = NOW() AT TIME ZONE 'UTC'`, [
+            ON CONFLICT (href) DO UPDATE SET last_available = NOW() AT TIME ZONE 'UTC',
+                img = $4,
+                checksum = $10,
+                currently_available = true,
+                price = $3
+            `, [
             drink.name,
             drink.href,
             drink.price,
@@ -172,7 +177,7 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
                     return reject(err);
                 })
 
-                console.log(">> Inserted a drink");
+                console.log(">> Inserted (or updated) drink");
 
                 return resolve(RsDatabaseAction.InsertDrink)
             } else {
