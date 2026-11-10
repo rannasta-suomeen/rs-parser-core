@@ -25,6 +25,8 @@ export interface RsDrink {
     subcategory?: number,
     retailer?: string,
 
+    alternative_prices?: Record<string, string>,
+
     checksum?: string,
 }
 
@@ -126,9 +128,10 @@ export const get_drink_by_checksum = async (checksum: string, pool: RsPool): Pro
  * @param pool 
  * @returns 
  */
+const ALLOW_NULL = ['alternative_prices'];
 export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAction | null> => {
     return new Promise(async (resolve, reject) => {
-        if (Object.values(drink).includes(null) || Object.values(drink).includes(undefined) || Object.values(drink).includes(NaN)) {
+        if (Object.values(drink).filter(f => !ALLOW_NULL.includes(f)).includes(null) || Object.values(drink).includes(undefined) || Object.values(drink).includes(NaN)) {
             console.log(">> Found invalid drink");
             console.log(drink);
             return reject(null);
@@ -150,13 +153,14 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
         }
 
         pool.query(`INSERT INTO products
-            (name, href, price, img, volume, category_id, subcategory_id, abv, retailer, checksum, currently_available, last_available)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, NOW() AT TIME ZONE 'UTC')
+            (name, href, price, img, volume, category_id, subcategory_id, abv, retailer, checksum, alternative_prices, currently_available, last_available)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, true, NOW() AT TIME ZONE 'UTC')
             ON CONFLICT (href) DO UPDATE SET last_available = NOW() AT TIME ZONE 'UTC',
                 img = $4,
                 checksum = $10,
                 currently_available = true,
-                price = $3
+                price = $3,
+                alternative_prices = $11::jsonb
             `, [
             drink.name,
             drink.href,
@@ -167,7 +171,9 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
             drink.subcategory,
             drink.abv,
             drink.retailer,
-            drink.checksum
+            drink.checksum,
+            // JSONB column: serialize explicitly, NULL when not set
+            drink.alternative_prices ? JSON.stringify(drink.alternative_prices) : null
         ])
         .then(async result => {
             if (result.rowCount ?? 0 >= 1) {
@@ -255,7 +261,14 @@ export const insert_drinks = (drinks: RsDrink[], pool: RsPool): Promise<RsResult
  * @returns 
  */
 export const generate_drink_checksum = (drink: RsDrink) => {
-    const str = `${drink.href};${drink.price};${drink.img}`;
+    let str: string;
+
+    if (drink.alternative_prices) {
+        const raw = Object.values(drink.alternative_prices).join(' ');
+        str = `${drink.href};${drink.price};${drink.img};${raw}`;
+    } else {
+        str = `${drink.href};${drink.price};${drink.img}`;
+    }
 
     return generate_checksum(str);
 };

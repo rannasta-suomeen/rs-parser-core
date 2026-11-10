@@ -21,6 +21,7 @@ export interface RsDrink {
     abv?: number;
     subcategory?: number;
     retailer?: string;
+    alternative_prices?: Record<string, string>;
     checksum?: string;
 }
 /**
@@ -71,21 +72,6 @@ export declare const construct_category_map: (pool: Pool) => Promise<{
  * @returns
  */
 export declare const get_drink_by_checksum: (checksum: string, pool: RsPool) => Promise<RsDrink | null>;
-/**
- * Inserts or updates {@link RsDrink} into the database
- * - If the drink exists *(and has not changed by `checksum`)*, the drink is updated
- * => {@link null} is returned
- *
- * - If the drink exists *(and has changed by `checksum`)*, the drink is updated
- * => {@link RsDatabaseAction.UpdateDrink} is returned
- *
- * - If the drink doesn't exists , the drink is inserted
- * => {@link RsDatabaseAction.InsertDrink} is returned
- *
- * @param drink
- * @param pool
- * @returns
- */
 export declare const insert_drink: (drink: RsDrink, pool: RsPool) => Promise<RsDatabaseAction | null>;
 /**
  * Performs {@link insert_drink} for every drink in `drinks`
