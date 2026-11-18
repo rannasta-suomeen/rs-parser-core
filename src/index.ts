@@ -152,6 +152,42 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
 
         }
 
+        const alternative_prices = drink.alternative_prices ? JSON.stringify(drink.alternative_prices) : null;
+
+        // The same product can arrive with a different href depending on which
+        // alternative source listed it first, but the img stays the same.
+        // ON CONFLICT only supports a single target, so match on img manually.
+        // An exact href match takes precedence and is handled by ON CONFLICT (href) below.
+        try {
+            const img_match = await pool.query(`UPDATE products
+                SET last_available = NOW() AT TIME ZONE 'UTC',
+                    checksum = $1,
+                    currently_available = true,
+                    price = $2,
+                    alternative_prices = $3::jsonb
+                WHERE id = (
+                    SELECT id FROM products
+                    WHERE img = $4
+                    AND NOT EXISTS (SELECT 1 FROM products WHERE href = $5)
+                    LIMIT 1
+                )
+                `, [
+                    drink.checksum,
+                    drink.price,
+                    alternative_prices,
+                    drink.img,
+                    drink.href
+            ]);
+
+            if ((img_match.rowCount ?? 0) >= 1) {
+                console.log(">> Drink info was updated (matched by img)");
+                return resolve(RsDatabaseAction.UpdateDrink);
+            }
+        } catch (err) {
+            console.log(err);
+            return reject(err);
+        }
+
         pool.query(`INSERT INTO products
             (name, href, price, img, volume, category_id, subcategory_id, abv, retailer, checksum, alternative_prices, currently_available, last_available)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, true, NOW() AT TIME ZONE 'UTC')
@@ -160,7 +196,7 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
                 checksum = $10,
                 currently_available = true,
                 price = $3,
-                alternative_prices = $11::jsonb
+                alternative_prices = $11::jsonblet's additionally 
             `, [
             drink.name,
             drink.href,
@@ -172,8 +208,8 @@ export const insert_drink = (drink: RsDrink, pool: RsPool): Promise<RsDatabaseAc
             drink.abv,
             drink.retailer,
             drink.checksum,
-            // JSONB column: serialize explicitly, NULL when not set
-            drink.alternative_prices ? JSON.stringify(drink.alternative_prices) : null
+            // JSONB column: serialized explicitly, NULL when not set
+            alternative_prices
         ])
         .then(async result => {
             if (result.rowCount ?? 0 >= 1) {
